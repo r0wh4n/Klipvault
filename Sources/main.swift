@@ -293,21 +293,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Headless smoke test: builds the popup and the preferences window for real and
     /// checks they make it onto the screen. Catches SwiftUI crashes a unit test cannot.
     private func runUITest() {
+        // Checked one at a time on purpose: opening Preferences takes key focus, which
+        // legitimately dismisses the popup, so asserting on both at once is a race.
+        func onScreen() -> [(String, Int, Int)] {
+            let pid = ProcessInfo.processInfo.processIdentifier
+            let list = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]) ?? []
+            return list.filter { ($0[kCGWindowOwnerPID as String] as? Int32) == pid }.map { w in
+                let b = w[kCGWindowBounds as String] as? [String: Any] ?? [:]
+                return (w[kCGWindowName as String] as? String ?? "(popup)",
+                        Int(b["Width"] as? Double ?? 0), Int(b["Height"] as? Double ?? 0))
+            }
+        }
+        var failures = 0
+        func check(_ ok: Bool, _ what: String) {
+            if ok { print("  ok   \(what)") } else { failures += 1; print("  FAIL \(what)") }
+        }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             PanelController.shared.show()
-            PrefsWindow.shared.show()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                let pid = ProcessInfo.processInfo.processIdentifier
-                let list = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]) ?? []
-                let mine = list.filter { ($0[kCGWindowOwnerPID as String] as? Int32) == pid }
-                for w in mine {
-                    let b = w[kCGWindowBounds as String] as? [String: Any] ?? [:]
-                    print("  window: \(w[kCGWindowName as String] as? String ?? "(popup)")  "
-                          + "\(b["Width"] ?? 0)x\(b["Height"] ?? 0)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                let popup = onScreen()
+                let expected = Int(D.dbl(D.popupWidth)) + (D.bool(D.showPreviewPane) ? Int(PanelController.previewWidth) : 0)
+                check(popup.count == 1, "popup rendered (\(popup.map { "\($0.1)x\($0.2)" }.joined(separator: ", ")))")
+                check(popup.first?.1 == expected, "popup is \(expected)pt wide as configured")
+
+                PrefsWindow.shared.show()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    let prefs = onScreen().filter { $0.0.contains("Preferences") }
+                    check(!prefs.isEmpty, "preferences rendered (\(prefs.map { "\($0.1)x\($0.2)" }.joined(separator: ", ")))")
+                    print(failures == 0 ? "ui: all checks passed" : "ui: \(failures) FAILED")
+                    exit(failures == 0 ? 0 : 1)
                 }
-                print(mine.count >= 2 ? "ui: popup and preferences both rendered"
-                                      : "ui: FAILED — only \(mine.count) window(s) on screen")
-                exit(mine.count >= 2 ? 0 : 1)
             }
         }
     }
