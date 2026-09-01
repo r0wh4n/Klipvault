@@ -61,6 +61,18 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Try Touch ID first. Any failure — cancelled, no match, Keychain item gone after an
+    /// app update — falls back to the passphrase field rather than blocking the user out.
+    func unlockWithBiometrics(_ done: @escaping (Bool) -> Void) {
+        guard vault.usesBiometrics else { done(false); return }
+        Biometry.retrieve(reason: "unlock your Klipvault history") { [weak self] key in
+            guard let self, let key else { done(false); return }
+            self.vault.unlock(withKey: key)
+            self.finishUnlock()
+            done(true)
+        }
+    }
+
     func unlock(passphrase: String) -> Bool {
         guard vault.unlock(passphrase: passphrase) else { return false }
         finishUnlock()

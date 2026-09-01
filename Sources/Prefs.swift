@@ -377,6 +377,7 @@ struct SecurityTab: View {
     @State private var pass2 = ""
     @State private var note: String?
     @State private var suggested = Passphrase.generate()
+    @State private var useBiometrics = false
 
     var body: some View {
         Form {
@@ -418,6 +419,29 @@ struct SecurityTab: View {
                     if let n = note { Text(n).font(.caption).foregroundStyle(.secondary) }
                 }
             }
+            if Biometry.isAvailable {
+                Section(Biometry.name) {
+                    switch Biometry.capability {
+                    case .ready:
+                        Toggle("Unlock with \(Biometry.name)", isOn: $useBiometrics)
+                            .disabled(!state.vault.usesPassphrase)
+                            .onChange(of: useBiometrics) { _, on in
+                                if on { useBiometrics = state.vault.enableBiometricUnlock() }
+                                else { state.vault.disableBiometricUnlock() }
+                            }
+                        Text(state.vault.usesPassphrase
+                             ? "Your key is handed to the Secure Enclave and released only on a fingerprint match. Your passphrase still works, and still opens the vault if this Mac's fingerprints ever change."
+                             : "Set a passphrase first. Without one the key already sits on this Mac, so a fingerprint prompt would be decoration rather than protection.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    case .needsSignedBuild:
+                        LabeledContent("Unlock with \(Biometry.name)", value: "Unavailable in this build")
+                        Text("\(Biometry.name) stores the key in the Secure Enclave, which macOS only allows for apps signed with an Apple Developer ID. This build is ad-hoc signed, so the option is off rather than pretending to protect something. It switches itself on the moment Klipvault ships signed.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    case .noHardware:
+                        EmptyView()
+                    }
+                }
+            }
             Section("Locking") {
                 Stepper(autoLock == 0 ? "Never lock automatically" : "Lock after **\(autoLock)** min idle",
                         value: $autoLock, in: 0...240, step: 5)
@@ -455,6 +479,7 @@ struct SecurityTab: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { useBiometrics = state.vault.usesBiometrics }
     }
 
     private func setPass() {

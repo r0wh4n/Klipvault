@@ -179,12 +179,33 @@ struct UnlockView: View {
     let onDone: () -> Void
     @State private var pass = ""
     @State private var wrong = false
+    @State private var busy = false
     @FocusState private var focused: Bool
+
+    private var biometricsReady: Bool { AppState.shared.vault.usesBiometrics }
 
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "lock.rectangle.stack.fill").font(.system(size: 34)).foregroundStyle(.tint)
             Text("Unlock your vault").font(.headline)
+
+            if biometricsReady {
+                Button { runBiometrics() } label: {
+                    Label("Unlock with \(Biometry.name)",
+                          systemImage: Biometry.name == "Face ID" ? "faceid" : "touchid")
+                        .frame(maxWidth: .infinity)
+                }
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
+                .disabled(busy)
+
+                HStack {
+                    VStack { Divider() }
+                    Text("or").font(.caption).foregroundStyle(.secondary)
+                    VStack { Divider() }
+                }
+            }
+
             SecureField("Passphrase", text: $pass)
                 .textFieldStyle(.roundedBorder)
                 .focused($focused)
@@ -193,12 +214,25 @@ struct UnlockView: View {
             HStack {
                 Button("Quit") { NSApp.terminate(nil) }
                 Spacer()
-                Button("Unlock", action: unlock).keyboardShortcut(.defaultAction).disabled(pass.isEmpty)
+                Button("Unlock", action: unlock)
+                    .keyboardShortcut(biometricsReady ? .init(.end) : .defaultAction)
+                    .disabled(pass.isEmpty)
             }
         }
         .padding(20)
         .frame(width: 380)
-        .onAppear { focused = true }
+        .onAppear {
+            focused = !biometricsReady
+            if biometricsReady { runBiometrics() }
+        }
+    }
+
+    private func runBiometrics() {
+        busy = true
+        AppState.shared.unlockWithBiometrics { ok in
+            busy = false
+            if ok { onDone() } else { focused = true }   // cancelled or no match: type it instead
+        }
     }
 
     private func unlock() {
@@ -483,7 +517,27 @@ func selfTest() -> Int32 {
     let blobRaw = (try? Data(contentsOf: v.blobsURL.appendingPathComponent(name + ".bin"))) ?? Data()
     check(!String(decoding: blobRaw, as: UTF8.self).contains("PIXELS-SECRET"), "blob is encrypted at rest")
 
-    // 8. A locked vault gives up nothing.
+    // 8. Touch ID enrolment: gated on passphrase mode, and cleared when it is removed.
+    switch Biometry.capability {
+    case .noHardware: print("  skip  Touch ID checks (no biometric hardware)")
+    case .needsSignedBuild:
+        check(v.enableBiometricUnlock() == false, "Touch ID declines cleanly on an unsigned build")
+        check(!v.usesBiometrics, "vault does not claim Touch ID it cannot deliver")
+    case .ready:
+        Biometry.service = "app.klipvault.selftest"   // never touch the real enrolment
+        Biometry.remove()
+        let plainVault = Vault(dir: tmp.appendingPathComponent("plain"))
+        plainVault.unlockEphemeral()
+        check(plainVault.enableBiometricUnlock() == false, "Touch ID is refused without a passphrase")
+        check(v.enableBiometricUnlock(), "Touch ID enrols once a passphrase exists")
+        check(v.usesBiometrics, "vault reports Touch ID as enrolled")
+        try? v.removePassphrase()
+        check(!Biometry.isEnrolled, "removing the passphrase clears the enclave copy")
+        Biometry.remove()
+        try! v.setPassphrase("correct-horse-battery-staple")   // restore for the checks below
+    }
+
+    // 9. A locked vault gives up nothing.
     v.lock()
     check(v.items.isEmpty && v.readBlob(name) == nil, "locked vault reads nothing")
 

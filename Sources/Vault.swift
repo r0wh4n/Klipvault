@@ -96,6 +96,8 @@ final class Vault {
     var keyFileURL: URL { dir.appendingPathComponent("key.local") }
     var blobsURL: URL { dir.appendingPathComponent("blobs") }
     var usesPassphrase: Bool { FileManager.default.fileExists(atPath: wrappedKeyURL.path) }
+    /// Touch ID is a shortcut past the passphrase, never a replacement for one.
+    var usesBiometrics: Bool { usesPassphrase && Biometry.isReady && Biometry.isEnrolled }
 
     init(dir: URL? = nil) {
         self.dir = dir ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -165,6 +167,17 @@ final class Vault {
 
     func lock() { key = nil; items = [] }
 
+    /// Unlock from a key the Secure Enclave just released.
+    func unlock(withKey k: SymmetricKey) { key = k }
+
+    @discardableResult
+    func enableBiometricUnlock() -> Bool {
+        guard let k = key, usesPassphrase, Biometry.isReady else { return false }
+        return Biometry.store(k)
+    }
+
+    func disableBiometricUnlock() { Biometry.remove() }
+
     /// Test hook: unlock with a throwaway key so the self-test never touches a real vault.
     func unlockEphemeral() { key = SymmetricKey(size: .bits256) }
 
@@ -186,6 +199,7 @@ final class Vault {
         guard let k = key else { throw VaultError.locked }
         guard writeKeyFile(k) else { throw VaultError.crypto }
         try? FileManager.default.removeItem(at: wrappedKeyURL)
+        Biometry.remove()
     }
 
     // MARK: log I/O
