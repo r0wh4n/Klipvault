@@ -103,7 +103,7 @@ You can also ignore specific apps by bundle ID, ignore anything matching your ow
 ## Install
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/Klipvault.git
+git clone https://github.com/r0wh4n/Klipvault.git
 cd Klipvault
 ./install.sh
 ```
