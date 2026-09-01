@@ -7,12 +7,24 @@ APP="Klipvault.app"
 BUILD="build"
 BIN="$BUILD/Klipvault"
 
+compile() { # compile <target-triple> <output>
+  swiftc -swift-version 5 -O -target "$1" \
+    -framework AppKit -framework SwiftUI -framework Carbon -framework ServiceManagement \
+    Sources/*.swift -o "$2"
+}
+
 echo "→ compiling"
 rm -rf "$BUILD" && mkdir -p "$BUILD"
-swiftc -swift-version 5 -O \
-  -target arm64-apple-macosx14.0 \
-  -framework AppKit -framework SwiftUI -framework Carbon -framework ServiceManagement \
-  Sources/*.swift -o "$BIN"
+compile arm64-apple-macosx14.0 "$BUILD/Klipvault-arm64"
+# Intel slice is best-effort: some Command Line Tools installs carry no x86_64 stub
+# libraries. A missing slice costs Intel support, not the build.
+if compile x86_64-apple-macosx14.0 "$BUILD/Klipvault-x86_64" 2>/dev/null; then
+  lipo -create "$BUILD/Klipvault-arm64" "$BUILD/Klipvault-x86_64" -output "$BIN"
+  echo "  universal: $(lipo -archs "$BIN")"
+else
+  cp "$BUILD/Klipvault-arm64" "$BIN"
+  echo "  arm64 only (no x86_64 SDK slice available on this machine)"
+fi
 
 echo "→ drawing icon"
 ICONSET="$BUILD/Klipvault.iconset"
