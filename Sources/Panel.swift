@@ -17,6 +17,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     private let state = AppState.shared
 
     var isVisible: Bool { panel?.isVisible ?? false }
+    var contentView: NSView? { panel?.contentView }
 
     func toggle() { isVisible ? hide() : show() }
 
@@ -491,8 +492,17 @@ struct EmptyState: View {
     }
 }
 
+enum Screenshot { static var active = false }
+
 struct VisualEffect: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
+        if Screenshot.active {
+            let v = NSVisualEffectView()
+            v.material = .windowBackground
+            v.blendingMode = .withinWindow
+            v.state = .active
+            return v
+        }
         let v = NSVisualEffectView()
         v.material = .popover
         v.blendingMode = .behindWindow

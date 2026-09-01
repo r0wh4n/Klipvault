@@ -245,6 +245,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if AppState.shared.locked { UnlockWindow.shared.show() }
 
         if CommandLine.arguments.contains("--test-ui") { runUITest() }
+        if let i = CommandLine.arguments.firstIndex(of: "--screenshot"), i + 1 < CommandLine.arguments.count {
+            captureScreenshots(into: CommandLine.arguments[i + 1])
+        }
+    }
+
+    /// Renders the real popup against invented data and writes PNGs — the app screenshots
+    /// itself, so no Screen Recording permission and no real clipboard content involved.
+    private func captureScreenshots(into dir: String) {
+        Screenshot.active = true
+        let s = AppState.shared
+        s.locked = false
+        s.items = DemoData.items()
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+
+        func shoot(_ name: String, preview: Bool, then next: @escaping () -> Void) {
+            D.set(D.showPreviewPane, preview)
+            PanelController.shared.hide()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                PanelController.shared.show()
+                s.items = DemoData.items()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+                    if let v = PanelController.shared.contentView,
+                       let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
+                        v.cacheDisplay(in: v.bounds, to: rep)
+                        if let png = rep.representation(using: .png, properties: [:]) {
+                            try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent(name))
+                            print("  wrote \(name)  \(Int(v.bounds.width))x\(Int(v.bounds.height))")
+                        }
+                    }
+                    next()
+                }
+            }
+        }
+        shoot("popup.png", preview: false) {
+            shoot("popup-preview.png", preview: true) { exit(0) }
+        }
     }
 
     /// Headless smoke test: builds the popup and the preferences window for real and
@@ -289,6 +325,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSWorkspace.shared.open(URL(string:
                 "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
         }
+    }
+}
+
+// MARK: - Demo data for screenshots
+
+enum DemoData {
+    private static func swatch(_ a: NSColor, _ b: NSColor) -> Data? {
+        let img = NSImage(size: NSSize(width: 240, height: 150))
+        img.lockFocus()
+        NSGradient(colors: [a, b])?.draw(in: NSRect(x: 0, y: 0, width: 240, height: 150), angle: -45)
+        img.unlockFocus()
+        return Watcher.png(img, maxDim: 256)
+    }
+
+    static func items() -> [ClipRecord] {
+        func rec(_ kind: ClipKind, _ title: String, _ text: String?, _ app: String, _ bundle: String,
+                 _ minsAgo: Double, bytes: Int, pinned: Bool = false, pinKey: String? = nil,
+                 sensitive: Bool = false, thumb: Data? = nil) -> ClipRecord {
+            var r = ClipRecord()
+            r.kind = kind; r.title = title; r.text = text
+            r.appName = app; r.appBundle = bundle
+            r.created = Date().timeIntervalSince1970 - minsAgo * 60
+            r.lastUsed = r.created; r.bytes = bytes
+            r.pinned = pinned; r.pinKey = pinKey; r.sensitive = sensitive; r.thumb = thumb
+            if kind == .image { r.pixelW = 2880; r.pixelH = 1800 }
+            return r
+        }
+        return [
+            rec(.text, "stand-up: meet.google.com/kdx-mqrb-uwz", "https://meet.google.com/kdx-mqrb-uwz",
+                "Calendar", "com.apple.iCal", 4320, bytes: 38, pinned: true, pinKey: "1"),
+            rec(.text, "ssh deploy@10.0.14.22 -p 2202", "ssh deploy@10.0.14.22 -p 2202",
+                "Terminal", "com.apple.Terminal", 8640, bytes: 29, pinned: true, pinKey: "2"),
+            rec(.text, "func debounce(_ interval: TimeInterval, _ action: @escaping () -> Void) {",
+                "func debounce(_ interval: TimeInterval, _ action: @escaping () -> Void) {\n    var work: DispatchWorkItem?\n    return {\n        work?.cancel()\n    }\n}",
+                "Xcode", "com.apple.dt.Xcode", 3, bytes: 214),
+            rec(.image, "Image 2880×1800 — 1.4 MB", nil, "Screenshot", "com.apple.screencaptureui", 11,
+                bytes: 1_468_006, thumb: swatch(NSColor(srgbRed: 0.35, green: 0.32, blue: 0.86, alpha: 1),
+                                                NSColor(srgbRed: 0.11, green: 0.55, blue: 0.62, alpha: 1))),
+            rec(.text, "🔒 Sensitive — 40 characters hidden", "sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "1Password", "com.1password.1password", 19, bytes: 40, sensitive: true),
+            rec(.files, "Q3-forecast.numbers", "/Users/you/Documents/Q3-forecast.numbers",
+                "Finder", "com.apple.finder", 44, bytes: 41),
+            rec(.text, "Shipping the new onboarding flow on Thursday — copy is final, design signed off.",
+                "Shipping the new onboarding flow on Thursday — copy is final, design signed off.",
+                "Slack", "com.tinyspeck.slackmacgap", 96, bytes: 79),
+            rec(.text, "https://github.com/r0wh4n/Klipvault", "https://github.com/r0wh4n/Klipvault",
+                "Safari", "com.apple.Safari", 143, bytes: 35),
+            rec(.text, "SELECT id, email FROM users WHERE created_at > now() - interval '7 days'",
+                "SELECT id, email FROM users WHERE created_at > now() - interval '7 days';",
+                "TablePlus", "com.tinyapp.TablePlus", 190, bytes: 71),
+            rec(.text, "Flat 402, Prestige Meridian, MG Road, Bengaluru 560001",
+                "Flat 402, Prestige Meridian, MG Road, Bengaluru 560001",
+                "Notes", "com.apple.Notes", 1440, bytes: 53),
+            rec(.text, "npm run build -- --profile --json > stats.json",
+                "npm run build -- --profile --json > stats.json",
+                "Terminal", "com.apple.Terminal", 2880, bytes: 45),
+        ]
     }
 }
 
