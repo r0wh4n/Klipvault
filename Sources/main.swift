@@ -255,6 +255,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func captureScreenshots(into dir: String) {
         Screenshot.active = true
         let s = AppState.shared
+        // Screenshotting must not leave a trace: remember the real preference to put back,
+        // and stop the watcher so a capture run never records anything into a real vault.
+        let realPreviewSetting = D.bool(D.showPreviewPane)
+        s.watcher.stop()
         s.locked = false
         s.items = DemoData.items()
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
@@ -279,7 +283,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         shoot("popup.png", preview: false) {
-            shoot("popup-preview.png", preview: true) { exit(0) }
+            shoot("popup-preview.png", preview: true) {
+                D.set(D.showPreviewPane, realPreviewSetting)
+                exit(0)
+            }
         }
     }
 
