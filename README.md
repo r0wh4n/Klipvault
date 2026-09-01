@@ -85,31 +85,15 @@ No account, no sync, no telemetry, no update check, no dependencies. There isn't
 
 <br>
 
-## Klipvault vs Maccy
+## Why not just use what you have
 
-[Maccy](https://github.com/p0deje/Maccy) is excellent, and it's the reason this exists — it set the bar for what a lightweight Mac clipboard manager should feel like. Klipvault keeps that shape and rebuilds the parts that matter when your clipboard holds credentials.
+macOS remembers exactly one thing you copied, and forgets it the moment you copy the next. Every clipboard manager fixes that — and then writes your entire copy history to disk in a format built to be read.
 
-| | Klipvault | Maccy |
-|:--|:--|:--|
-| **Encrypted at rest** | ✅ AES-256-GCM, always on | ❌ Plain Core Data store |
-| **Passphrase protection** | ✅ 310,000 PBKDF2 rounds, key stored nowhere | ❌ |
-| **Lock the vault** | ✅ Idle, sleep, screen lock, or a hotkey | ❌ |
-| **Secret detection** | ✅ 13 patterns, masked + optional minute-level TTL | ❌ |
-| **Panic wipe** | ✅ One key erases the vault and the clipboard | ❌ |
-| **Retention** | ✅ By age *and* count, pins exempt | ⚠️ By count only |
-| **Expiry shown per item** | ✅ | ❌ |
-| **Large images** | ✅ Separate encrypted blobs, thumbnail in the index | ⚠️ Stored inline |
-| **Search** | ✅ Fuzzy · contains · exact · regex | ✅ Fuzzy · exact |
-| **Pins** | ✅ With one-key shortcuts | ✅ |
-| **Ignore rules** | ✅ App, regex, length, password-manager markers | ✅ App, regex |
-| **Preference tabs** | ✅ 7 (incl. a Security tab) | ✅ 6 |
-| **Dependencies** | ✅ **Zero** | ⚠️ Sparkle, KeyboardShortcuts, Settings |
-| **Network code** | ✅ **None** | ⚠️ Update checks |
-| **Diagnostics** | ✅ `--probe` explains every capture decision | ❌ |
+Klipvault takes the opposite default. **Encryption is the storage layer, not a preference.** On top of that sits the rest of what a clipboard should have done from the start: a memory measured in days rather than item counts, an expiry date you can actually see, pins that survive it, a vault you can lock, and detection for the moment you copy something you'd rather nobody read over your shoulder.
 
-**Where Maccy still wins, honestly:** it's **notarized by Apple**, it's in **Homebrew core** and the **App Store**, it **auto-updates**, it's **localized into a dozen languages**, and it has years of real-world hammering behind it. Klipvault is version 1.0 from a single developer, ad-hoc signed, in a personal tap.
+It ships with zero dependencies and no network code whatsoever — no account, no sync, no telemetry, no update ping. 2,800 lines you can read in an afternoon.
 
-If you want the safest, most battle-tested choice, install Maccy. If your clipboard holds things you'd rather not leave in plain text on a disk, keep reading.
+**Where it's early, honestly:** this is version 1.0. It's ad-hoc signed rather than notarized by Apple, it's distributed through a personal Homebrew tap rather than the App Store, it doesn't auto-update, and it's English-only. If you need the most battle-tested option on the market, this isn't it yet.
 
 <br>
 
@@ -249,6 +233,6 @@ Eight Swift files, ~2,800 lines, Apple frameworks only.
 
 **MIT licensed.** Take it, fork it, ship it.
 
-Klipvault owes its shape to [Maccy](https://github.com/p0deje/Maccy) by Alex Rodionov — an excellent app that has served a lot of people well for a long time.
+Built because a clipboard that remembers everything should also be able to keep a secret.
 
 </div>
