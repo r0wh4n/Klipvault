@@ -2,3 +2,5 @@ build/
 Klipvault.app/
 .DS_Store
 *.icns
+Klipvault-*.zip
+docs/.DS_Store
