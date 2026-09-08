@@ -3,6 +3,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# The one place the version lives. build.sh stamps it into the bundle, the release tag
+# and the Homebrew cask follow it.
+VERSION="1.1.0"
+
 APP="Klipvault.app"
 BUILD="build"
 BIN="$BUILD/Klipvault"
@@ -48,8 +52,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleExecutable</key><string>Klipvault</string>
   <key>CFBundleIconFile</key><string>Klipvault</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
+  <key>CFBundleVersion</key><string>$VERSION</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
@@ -66,5 +70,5 @@ echo "→ self-test"
 "$APP/Contents/MacOS/Klipvault" --selftest
 
 echo
-echo "Built $APP"
+echo "Built $APP $VERSION"
 echo "Install:  cp -R $APP /Applications/  &&  open /Applications/$APP"

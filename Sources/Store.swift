@@ -14,6 +14,9 @@ final class AppState: ObservableObject {
     @Published var selected: Int = 0
     @Published var locked: Bool = true
     @Published var focusToken: Int = 0
+    /// Locked clips whose fingerprint prompt has already been answered. Lives in memory
+    /// only, and dies with the vault — a reveal is good for this session, not forever.
+    @Published var revealed: Set<UUID> = []
 
     private var lastActiveApp: NSRunningApplication?
     private var idleTimer: Timer?
@@ -93,6 +96,7 @@ final class AppState: ObservableObject {
         vault.lock()
         items = []
         query = ""
+        revealed = []
         locked = true
     }
 
@@ -168,18 +172,87 @@ final class AppState: ObservableObject {
     }
 
     func use(_ rec: ClipRecord, paste: Bool, plain: Bool = false) {
-        watcher.writeToPasteboard(rec, plain: plain || D.bool(D.stripFormatting))
-        if D.bool(D.moveToTopOnUse) {
-            vault.touch(rec.id)
-            items = vault.items
+        // Every route to a clip's contents — the popup, the menu bar, a hotkey — lands here,
+        // so gating it here is the whole of the lock.
+        reveal(rec) { [weak self] in
+            guard let self else { return }
+            self.watcher.writeToPasteboard(rec, plain: plain || D.bool(D.stripFormatting))
+            if D.bool(D.moveToTopOnUse) {
+                self.vault.touch(rec.id)
+                self.items = self.vault.items
+            }
+            guard paste else { return }
+            let prev = self.lastActiveApp
+            PanelController.shared.hide()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                prev?.activate()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) { Watcher.sendPaste() }
+            }
         }
-        guard paste else { return }
-        let prev = lastActiveApp
-        PanelController.shared.hide()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            prev?.activate()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) { Watcher.sendPaste() }
+    }
+
+    // MARK: per-item lock
+
+    /// Runs `then` once this clip's lock is satisfied. An unlocked clip runs straight
+    /// through, synchronously, so nothing else had to learn about locking.
+    func reveal(_ rec: ClipRecord, then: @escaping () -> Void) {
+        guard rec.isLocked, !revealed.contains(rec.id) else { then(); return }
+        Biometry.confirm(reason: "reveal this locked clip") { [weak self] ok in
+            guard ok else { NSSound.beep(); return }
+            self?.revealed.insert(rec.id)
+            then()
         }
+    }
+
+    /// Locking a clip is only worth anything once the vault key is out of reach — with the
+    /// key sitting in key.local beside the history, a lock is a picture of a lock. So the
+    /// first lock asks for a passphrase, and unlocking one always asks for a fingerprint.
+    func toggleLock(_ rec: ClipRecord) {
+        guard !rec.isLocked else {
+            reveal(rec) { [weak self] in self?.setLock(rec, nil) }
+            return
+        }
+        guard vault.usesPassphrase || askForPassphrase() else { return }
+        setLock(rec, true)
+    }
+
+    private func setLock(_ rec: ClipRecord, _ on: Bool?) {
+        vault.update(rec.id) { $0.locked = on }
+        revealed.remove(rec.id)
+        items = vault.items
+    }
+
+    /// Asks for a vault passphrase and sets it. False if the user backs out or fumbles it.
+    private func askForPassphrase() -> Bool {
+        let a = NSAlert()
+        a.messageText = "Set a vault passphrase first"
+        a.informativeText = """
+        A locked clip is only really locked if the vault key is not sitting on this Mac. \
+        Setting a passphrase moves the key into your head: Klipvault will ask for it every \
+        time it starts, and nobody — including you — can read the history without it. \
+        Write it down somewhere physical before you commit.
+        """
+        let p1 = NSSecureTextField(frame: NSRect(x: 0, y: 26, width: 280, height: 22))
+        let p2 = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 22))
+        p1.placeholderString = "Passphrase (8 characters or more)"
+        p2.placeholderString = "Repeat passphrase"
+        let box = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 48))
+        box.addSubview(p1); box.addSubview(p2)
+        a.accessoryView = box
+        a.addButton(withTitle: "Set Passphrase")
+        a.addButton(withTitle: "Cancel")
+        a.window.initialFirstResponder = p1
+        guard a.runModal() == .alertFirstButtonReturn else { return false }
+        guard p1.stringValue.count >= 8, p1.stringValue == p2.stringValue else {
+            let e = NSAlert()
+            e.messageText = "Nothing was locked"
+            e.informativeText = "Those two passphrases did not match, or were shorter than 8 characters."
+            e.runModal()
+            return false
+        }
+        do { try vault.setPassphrase(p1.stringValue) } catch { return false }
+        vault.enableBiometricUnlock()   // declines by itself unless the Secure Enclave takes it
+        return true
     }
 
     func togglePin(_ rec: ClipRecord) {
@@ -224,7 +297,14 @@ final class AppState: ObservableObject {
 }
 
 extension ClipRecord {
-    var haystack: String { (text ?? "") + " " + title + " " + (appName ?? "") }
+    /// Empty for a locked clip: a search that matched its contents would let anyone read it
+    /// one keystroke at a time without ever touching the fingerprint reader.
+    var haystack: String { isLocked ? "" : (text ?? "") + " " + title + " " + (appName ?? "") }
+
+    /// What is safe to draw. Anywhere a title is shown, this is the title.
+    func displayTitle(revealed: Bool = false) -> String {
+        isLocked && !revealed ? "••••••••••••" : title
+    }
 
     var relativeTime: String {
         let f = RelativeDateTimeFormatter()
@@ -233,6 +313,7 @@ extension ClipRecord {
     }
 
     var glyph: String {
+        if isLocked { return "lock.fill" }
         switch kind {
         case .text: return sensitive ? "lock.shield" : "text.alignleft"
         case .image: return "photo"

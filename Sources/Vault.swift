@@ -76,7 +76,15 @@ struct ClipRecord: Codable, Identifiable, Equatable {
     var pinned: Bool = false
     var pinKey: String? = nil       // "1"..."9", "a"..."z"
     var sensitive: Bool = false     // matched a secret pattern -> masked + short TTL
+    /// Per-item lock: masked in every list until Touch ID says it is you.
+    /// Optional on purpose. Swift's synthesised Codable does *not* fall back to a
+    /// property's default when the key is missing, so a plain `Bool` here would make every
+    /// record written before this field existed fail to decode — silently eating the whole
+    /// history. An optional decodes to nil instead. nil means unlocked.
+    var locked: Bool? = nil
     var hash: String = ""           // dedupe key
+
+    var isLocked: Bool { locked == true }
 
     static func == (a: ClipRecord, b: ClipRecord) -> Bool { a.id == b.id }
 }

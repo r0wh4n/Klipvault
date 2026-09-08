@@ -32,7 +32,7 @@ final class MenuBar: NSObject, NSMenuDelegate {
         button.image = NSImage(systemSymbolName: name, accessibilityDescription: "Klipvault")
         button.image?.isTemplate = true
         if D.bool(D.showRecentInMenuBar), let recent = state.items.first, !state.locked {
-            button.title = " " + String(recent.title.prefix(18))
+            button.title = " " + String(recent.displayTitle().prefix(18))
         } else {
             button.title = ""
         }
@@ -85,10 +85,12 @@ final class MenuBar: NSObject, NSMenuDelegate {
     }
 
     private func menuItem(for rec: ClipRecord) -> NSMenuItem {
-        let i = NSMenuItem(title: String(rec.title.prefix(60)), action: #selector(pasteItem(_:)), keyEquivalent: "")
+        let i = NSMenuItem(title: String(rec.displayTitle().prefix(60)), action: #selector(pasteItem(_:)), keyEquivalent: "")
         i.target = self
         i.representedObject = rec.id.uuidString
-        if let t = rec.thumb, let img = NSImage(data: t) {
+        if rec.isLocked {
+            i.image = NSImage(systemSymbolName: rec.glyph, accessibilityDescription: nil)
+        } else if let t = rec.thumb, let img = NSImage(data: t) {
             img.size = NSSize(width: 16, height: 16)
             i.image = img
         } else {
@@ -554,7 +556,25 @@ func selfTest() -> Int32 {
     let loose = AppState.fuzzyScore(needle: "hell", haystack: "h e l l") ?? 0
     check(tight > loose, "fuzzy ranks consecutive matches higher")
 
-    // 11. Hotkey combos survive a round-trip through their stored form.
+    // 11. Per-item lock: it survives a reload, it keeps the clip out of search, and a
+    //     record written before the field existed still decodes — a new field must never
+    //     quietly eat an existing history.
+    let lv = Vault(dir: tmp.appendingPathComponent("lock"))
+    lv.unlockEphemeral()
+    var lk = ClipRecord(); lk.title = "vpn password"; lk.text = "hunter2"; lk.hash = "h5"; lk.locked = true
+    lv.insert(lk, dedupe: false, maxItems: 0)
+    lv.load()
+    check(lv.items.first?.isLocked == true, "a locked clip stays locked across a reload")
+    check(lv.items.first?.displayTitle() == "••••••••••••", "a locked clip never shows its title")
+    check(lv.items.first?.displayTitle(revealed: true) == "vpn password", "and shows it once revealed")
+    check(AppState.fuzzyScore(needle: "hunter", haystack: lv.items.first?.haystack ?? "") == nil,
+          "search cannot fish a locked clip out by its contents")
+    let plainJSON = (try? JSONEncoder().encode(ClipRecord())) ?? Data()
+    check(!String(decoding: plainJSON, as: UTF8.self).contains("locked"), "an unlocked clip writes no lock field")
+    check((try? JSONDecoder().decode(ClipRecord.self, from: plainJSON))?.isLocked == false,
+          "a record with no lock field still decodes — history from before this feature keeps loading")
+
+    // 12. Hotkey combos survive a round-trip through their stored form.
     let combo = HotkeyCenter.Combo(keyCode: 9, flags: [.command, .shift])
     check(HotkeyCenter.Combo.parse(combo.stored) == combo, "hotkey round-trips")
     check(combo.display == "\u{21E7}\u{2318}V", "hotkey renders as \u{21E7}\u{2318}V (got \(combo.display))")

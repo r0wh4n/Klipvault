@@ -93,6 +93,19 @@ enum Biometry {
 
     static func remove() { SecItemDelete(query() as CFDictionary) }
 
+    /// A presence check rather than a key release: "is it you?", nothing handed back.
+    /// `.deviceOwnerAuthentication` touches no Keychain item, so it needs no entitlement and
+    /// works in an ad-hoc build where `store`/`retrieve` cannot — and it falls back to the
+    /// Mac's login password by itself when a finger will not do. Used to gate a locked clip,
+    /// whose contents are already in memory behind the vault key.
+    static func confirm(reason: String, completion: @escaping (Bool) -> Void) {
+        let ctx = LAContext()
+        guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) else { completion(false); return }
+        ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { ok, _ in
+            DispatchQueue.main.async { completion(ok) }
+        }
+    }
+
     /// Prompts for a fingerprint. Runs off the main thread — a Keychain call that shows UI
     /// will deadlock the run loop otherwise — and calls back on it.
     static func retrieve(reason: String, completion: @escaping (SymmetricKey?) -> Void) {

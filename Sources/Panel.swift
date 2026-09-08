@@ -149,6 +149,9 @@ final class PanelController: NSObject, NSWindowDelegate {
         case 35 where cmd: // ⌘P
             if let item = list[safe: state.selected] { state.togglePin(item) }
             return true
+        case 37 where cmd: // ⌘L
+            if let item = list[safe: state.selected] { state.toggleLock(item) }
+            return true
         case 40 where cmd: // ⌘K
             state.query = ""; return true
         case 48: // tab
@@ -247,6 +250,7 @@ struct ClipListView: View {
         Button("Copy Only") { state.use(item, paste: false) }
         Divider()
         Button(item.pinned ? "Unpin" : "Pin") { state.togglePin(item) }
+        Button(item.isLocked ? "Unlock" : "Lock") { state.toggleLock(item) }
         Button("Delete") { state.delete(item) }
     }
 }
@@ -286,11 +290,14 @@ struct ClipRow: View {
     @AppStorage(D.compactRows) private var compact = false
     @AppStorage(D.fontSize) private var fontSize = 13.0
 
+    /// True while the clip's contents must not reach the screen.
+    private var hidden: Bool { item.isLocked && !state.revealed.contains(item.id) }
+
     var body: some View {
         HStack(spacing: 8) {
             icon
             VStack(alignment: .leading, spacing: 2) {
-                Highlighted(text: item.title, query: query, size: fontSize)
+                Highlighted(text: item.displayTitle(revealed: !hidden), query: hidden ? "" : query, size: fontSize)
                     .lineLimit(1)
                 if !compact && showTimestamps {
                     HStack(spacing: 5) {
@@ -298,7 +305,8 @@ struct ClipRow: View {
                         Text("·")
                         Text(item.relativeTime)
                         if item.bytes > 0 { Text("·"); Text(Watcher.human(item.bytes)) }
-                        if item.sensitive { Label("secret", systemImage: "lock.fill").labelStyle(.titleAndIcon) }
+                        if item.isLocked { Label("locked", systemImage: "touchid").labelStyle(.titleAndIcon) }
+                        else if item.sensitive { Label("secret", systemImage: "lock.fill").labelStyle(.titleAndIcon) }
                     }
                     .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
                 }
@@ -324,7 +332,9 @@ struct ClipRow: View {
     }
 
     @ViewBuilder private var icon: some View {
-        if item.kind == .image, let t = item.thumb, let img = NSImage(data: t) {
+        if hidden {
+            Image(systemName: "lock.fill").frame(width: 18).foregroundStyle(.tint)
+        } else if item.kind == .image, let t = item.thumb, let img = NSImage(data: t) {
             Image(nsImage: img).resizable().aspectRatio(contentMode: .fit)
                 .frame(width: imageHeight, height: imageHeight)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
@@ -381,7 +391,14 @@ struct PreviewPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let it = shown {
-                if it.kind == .image, let img = state.fullImage(it) {
+                if it.isLocked && !state.revealed.contains(it.id) {
+                    VStack(spacing: 6) {
+                        Image(systemName: "lock.fill").font(.largeTitle).foregroundStyle(.tint)
+                        Text("Locked").font(.caption)
+                        Text("Press ⏎ to unlock with \(Biometry.name)")
+                            .font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    }.frame(maxWidth: .infinity)
+                } else if it.kind == .image, let img = state.fullImage(it) {
                     Image(nsImage: img).resizable().aspectRatio(contentMode: .fit)
                         .frame(maxWidth: .infinity, maxHeight: 220)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -450,8 +467,8 @@ struct Footer: View {
         // ponytail: ViewThatFits picks the richest hint set the window can actually show,
         // so the footer degrades on its own instead of needing a width breakpoint.
         ViewThatFits(in: .horizontal) {
-            bar([("⏎","paste"),("⌘⏎","copy"),("⌥⏎","plain"),("⌘P","pin"),("⌘⌫","delete"),("⇥","preview")])
-            bar([("⏎","paste"),("⌘⏎","copy"),("⌘P","pin"),("⌘⌫","delete")])
+            bar([("⏎","paste"),("⌘⏎","copy"),("⌥⏎","plain"),("⌘P","pin"),("⌘L","lock"),("⌘⌫","delete"),("⇥","preview")])
+            bar([("⏎","paste"),("⌘⏎","copy"),("⌘P","pin"),("⌘L","lock"),("⌘⌫","delete")])
             bar([("⏎","paste"),("⌘P","pin"),("⌘⌫","delete")])
             bar([("⏎","paste"),("⌘P","pin")])
             bar([("⏎","paste")])

@@ -449,6 +449,8 @@ struct SecurityTab: View {
                 Toggle("Lock when the Mac sleeps", isOn: $lockOnSleep)
                 Toggle("Lock when the screen saver starts", isOn: $lockOnSaver)
                 Toggle("Clear the system clipboard when Klipvault quits", isOn: $clearOnQuit)
+                Text("Lock a single clip with \u{2318}L in the popup, or from its right-click menu. It stays masked in every list until \(Biometry.name) — or your login password — says it is you, and it drops back to masked the moment the vault locks. The first lock asks you to set a passphrase, because a lock over a key that lives on this Mac is only a picture of a lock.")
+                    .font(.caption).foregroundStyle(.secondary)
                 if !state.vault.usesPassphrase {
                     Text("Locking only has teeth once a passphrase is set.")
                         .font(.caption).foregroundStyle(.orange)
@@ -650,7 +652,7 @@ enum Backup {
     static func export(_ state: AppState) {
         let a = NSAlert()
         a.messageText = "Export the vault"
-        a.informativeText = "An encrypted backup can only be opened with this Mac's key or your passphrase. A plain export is readable by anyone who gets the file."
+        a.informativeText = "An encrypted backup can only be opened with this Mac's key or your passphrase, and keeps your locked clips locked. A plain export is readable by anyone who gets the file, so locked clips are left out of it entirely."
         a.addButton(withTitle: "Encrypted backup")
         a.addButton(withTitle: "Plain JSON")
         a.addButton(withTitle: "Cancel")
@@ -667,7 +669,9 @@ enum Backup {
             try? FileManager.default.copyItem(at: state.vault.historyURL, to: url)
         } else {
             let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-            if let d = try? enc.encode(state.vault.items) { try? d.write(to: url) }
+            // A plain export is the one door out of the vault that no fingerprint guards,
+            // so locked clips do not go through it.
+            if let d = try? enc.encode(state.vault.items.filter { !$0.isLocked }) { try? d.write(to: url) }
         }
     }
 
