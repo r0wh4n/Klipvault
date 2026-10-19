@@ -14,8 +14,8 @@ final class AppState: ObservableObject {
     @Published var selected: Int = 0
     @Published var locked: Bool = true
     @Published var focusToken: Int = 0
-    /// Locked clips whose fingerprint prompt has already been answered. Lives in memory
-    /// only, and dies with the vault — a reveal is good for this session, not forever.
+    /// Locked clips whose fingerprint prompt has been answered while the popup is open.
+    /// Emptied the moment it closes — a reveal is good for one look, not for the session.
     @Published var revealed: Set<UUID> = []
 
     private var lastActiveApp: NSRunningApplication?
@@ -199,7 +199,9 @@ final class AppState: ObservableObject {
         guard rec.isLocked, !revealed.contains(rec.id) else { then(); return }
         Biometry.confirm(reason: "reveal this locked clip") { [weak self] ok in
             guard ok else { NSSound.beep(); return }
-            self?.revealed.insert(rec.id)
+            // The prompt can take focus and close the popup before it answers. A reveal kept
+            // then would outlive the popup, and the menu bar and hotkeys would paste it unasked.
+            if PanelController.shared.isVisible { self?.revealed.insert(rec.id) }
             then()
         }
     }

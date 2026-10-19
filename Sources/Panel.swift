@@ -41,6 +41,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     func hide() {
         removeMonitors()
         panel?.orderOut(nil)
+        state.revealed = []
     }
 
     private func makePanel() -> FloatingPanel {

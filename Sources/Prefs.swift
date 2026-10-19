@@ -449,7 +449,7 @@ struct SecurityTab: View {
                 Toggle("Lock when the Mac sleeps", isOn: $lockOnSleep)
                 Toggle("Lock when the screen saver starts", isOn: $lockOnSaver)
                 Toggle("Clear the system clipboard when Klipvault quits", isOn: $clearOnQuit)
-                Text("Lock a single clip with \u{2318}L in the popup, or from its right-click menu. It stays masked in every list until \(Biometry.name) — or your login password — says it is you, and it drops back to masked the moment the vault locks. The first lock asks you to set a passphrase, because a lock over a key that lives on this Mac is only a picture of a lock.")
+                Text("Lock a single clip with \u{2318}L in the popup, or from its right-click menu. It stays masked in every list until \(Biometry.name) — or your login password — says it is you, and it drops back to masked the moment the popup closes. The first lock asks you to set a passphrase, because a lock over a key that lives on this Mac is only a picture of a lock.")
                     .font(.caption).foregroundStyle(.secondary)
                 if !state.vault.usesPassphrase {
                     Text("Locking only has teeth once a passphrase is set.")
