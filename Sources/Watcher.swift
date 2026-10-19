@@ -21,15 +21,20 @@ final class Watcher {
     /// `Klipvault --probe` turns this on to explain, out loud, why a copy was or wasn't kept.
     static var debug = false
     private static func log(_ m: @autoclosure () -> String) { if debug { print("  " + m()) } }
-    private let pb = NSPasteboard.general
+    /// How long a pasted secret stays on the clipboard. Overridable so the self-test need not wait.
+    // ponytail: fixed rather than a preference; make it one if 30s turns out wrong for someone.
+    static var secretTTL: Double = 30
+    private let pb: NSPasteboard
     private var lastChange: Int
     private var timer: Timer?
     private let vault: Vault
     var onCapture: ((ClipRecord) -> Void)?
 
-    init(vault: Vault) {
+    /// The pasteboard is injectable so the self-test never touches the real clipboard.
+    init(vault: Vault, pasteboard: NSPasteboard = .general) {
         self.vault = vault
-        self.lastChange = pb.changeCount
+        self.pb = pasteboard
+        self.lastChange = pasteboard.changeCount
     }
 
     func start() {
@@ -145,7 +150,10 @@ final class Watcher {
     /// Puts a record on the system pasteboard. `plain` drops rich formatting.
     func writeToPasteboard(_ rec: ClipRecord, plain: Bool) {
         ignoreNextChange()
-        pb.clearContents()
+        // A locked or flagged clip is a secret in transit: kept off Universal Clipboard,
+        // marked so other clipboard managers don't record it, and taken back once pasted.
+        let secret = rec.isLocked || rec.sensitive
+        pb.prepareForNewContents(with: secret ? .currentHostOnly : [])
         switch rec.kind {
         case .files:
             let urls = (rec.text ?? "").split(separator: "\n").map { URL(fileURLWithPath: String($0)) }
@@ -162,7 +170,32 @@ final class Watcher {
             if !plain, let html = rec.html { pb.setData(html, forType: .html) }
             pb.setString(rec.text ?? "", forType: .string)
         }
+        if secret { pb.setData(Data(), forType: PBType.concealed) }
         lastChange = pb.changeCount
+        if secret { wipe(after: Self.secretTTL) }
+    }
+
+    /// Empties the clipboard after `delay` — unless something else was copied in the meantime.
+    func wipe(after delay: Double = 0) {
+        let mine = pb.changeCount
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, self.pb.changeCount == mine else { return }
+            self.pb.clearContents()
+            self.lastChange = self.pb.changeCount
+        }
+    }
+
+    /// True while the clipboard still holds this clip, compared by the digest capture() files it under.
+    func isHolding(_ rec: ClipRecord) -> Bool {
+        let current: Data?
+        switch rec.kind {
+        case .text: current = pb.string(forType: .string).map { Data($0.utf8) }
+        case .image: current = pb.data(forType: .png) ?? pb.data(forType: .tiff)
+        case .files:
+            current = (pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL])
+                .map { Data($0.map(\.path).joined(separator: "\n").utf8) }
+        }
+        return current.map(Self.digest) == rec.hash
     }
 
     /// Sends ⌘V to whatever app is frontmost. Requires Accessibility permission;

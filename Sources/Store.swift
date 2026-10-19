@@ -216,6 +216,8 @@ final class AppState: ObservableObject {
         }
         guard vault.usesPassphrase || askForPassphrase() else { return }
         setLock(rec, true)
+        // Left on the clipboard, a freshly locked clip is still one ⌘V away from anyone.
+        if watcher.isHolding(rec) { watcher.wipe() }
     }
 
     private func setLock(_ rec: ClipRecord, _ on: Bool?) {

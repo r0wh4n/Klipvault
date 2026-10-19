@@ -574,7 +574,35 @@ func selfTest() -> Int32 {
     check((try? JSONDecoder().decode(ClipRecord.self, from: plainJSON))?.isLocked == false,
           "a record with no lock field still decodes — history from before this feature keeps loading")
 
-    // 12. Hotkey combos survive a round-trip through their stored form.
+    // 12. A secret written back out is marked concealed and taken off the clipboard once its
+    //     time is up — but never at the cost of something copied after it. Runs on a private
+    //     pasteboard, so building the app never clobbers the real clipboard.
+    let tpb = NSPasteboard(name: .init("app.klipvault.selftest-\(UUID())"))
+    defer { tpb.releaseGlobally() }
+    let w = Watcher(vault: lv, pasteboard: tpb)
+    Watcher.secretTTL = 0.2
+    func settle() { RunLoop.main.run(until: Date().addingTimeInterval(0.4)) }
+    var sec = ClipRecord(); sec.text = "hunter2"; sec.hash = Watcher.digest(Data("hunter2".utf8)); sec.locked = true
+    w.writeToPasteboard(sec, plain: false)
+    check(tpb.types?.contains(PBType.concealed) == true, "a pasted locked clip is marked concealed")
+    check(w.isHolding(sec), "the clipboard holds it right after the paste")
+    settle()
+    check(!w.isHolding(sec), "and lets go of it once its time is up")
+    w.writeToPasteboard(sec, plain: false)
+    tpb.clearContents(); tpb.setString("copied since", forType: .string)
+    settle()
+    check(tpb.string(forType: .string) == "copied since", "but never wipes something copied after it")
+    var open = ClipRecord(); open.text = "lunch at one"
+    w.writeToPasteboard(open, plain: false)
+    settle()
+    check(tpb.types?.contains(PBType.concealed) != true && tpb.string(forType: .string) == "lunch at one",
+          "an ordinary clip is neither marked nor wiped")
+    tpb.clearContents(); tpb.setString("hunter2", forType: .string)
+    check(w.isHolding(sec), "a clip copied by hand is recognised on the clipboard")
+    w.wipe(); settle()
+    check(!w.isHolding(sec), "locking a clip that is still on the clipboard takes it off")
+
+    // 13. Hotkey combos survive a round-trip through their stored form.
     let combo = HotkeyCenter.Combo(keyCode: 9, flags: [.command, .shift])
     check(HotkeyCenter.Combo.parse(combo.stored) == combo, "hotkey round-trips")
     check(combo.display == "\u{21E7}\u{2318}V", "hotkey renders as \u{21E7}\u{2318}V (got \(combo.display))")
