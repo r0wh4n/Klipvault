@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 # The one place the version lives. build.sh stamps it into the bundle, the release tag
 # and the Homebrew cask follow it.
-VERSION="1.1.0"
+VERSION="1.2.0"
 
 APP="Klipvault.app"
 BUILD="build"
