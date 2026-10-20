@@ -55,6 +55,8 @@ final class PanelController: NSObject, NSWindowDelegate {
         p.standardWindowButton(.miniaturizeButton)?.isHidden = true
         p.standardWindowButton(.zoomButton)?.isHidden = true
         p.level = .floating
+        // Your clipboard history has no business in a screen share or a recording.
+        p.sharingType = .none
         p.hidesOnDeactivate = false
         p.isReleasedWhenClosed = false
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
