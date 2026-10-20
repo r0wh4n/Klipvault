@@ -98,10 +98,23 @@ enum Biometry {
     /// works in an ad-hoc build where `store`/`retrieve` cannot — and it falls back to the
     /// Mac's login password by itself when a finger will not do. Used to gate a locked clip,
     /// whose contents are already in memory behind the vault key.
+    ///
+    /// Fingerprint-only drops that fallback, for a Mac whose password other people know. The
+    /// cost is real: with no reader to hand — lid shut, or locked out after failed tries — a
+    /// locked clip stays locked until a finger can reach one.
+    // ponytail: the setting lives in UserDefaults, so someone with your password and a Terminal
+    // can still `defaults write` it off. Move it into the vault if that threat matters.
     static func confirm(reason: String, completion: @escaping (Bool) -> Void) {
         let ctx = LAContext()
-        guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) else { completion(false); return }
-        ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { ok, _ in
+        let policy: LAPolicy
+        if D.bool(D.fingerprintOnly) {
+            policy = .deviceOwnerAuthenticationWithBiometrics
+            ctx.localizedFallbackTitle = ""   // hides the "Use Password…" button
+        } else {
+            policy = .deviceOwnerAuthentication
+        }
+        guard ctx.canEvaluatePolicy(policy, error: nil) else { completion(false); return }
+        ctx.evaluatePolicy(policy, localizedReason: reason) { ok, _ in
             DispatchQueue.main.async { completion(ok) }
         }
     }

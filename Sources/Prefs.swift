@@ -374,11 +374,20 @@ struct SecurityTab: View {
     @AppStorage(D.sensitiveMinutes) private var sensitiveMinutes = 0
     @AppStorage(D.clearSystemClipboardOnQuit) private var clearOnQuit = false
     @AppStorage(D.lockSecrets) private var lockSecrets = false
+    @AppStorage(D.fingerprintOnly) private var fingerprintOnly = false
     @State private var pass1 = ""
     @State private var pass2 = ""
     @State private var note: String?
     @State private var suggested = Passphrase.generate()
     @State private var useBiometrics = false
+
+    /// Off has to get past the gate it guards, or anyone who knows the password just unticks it.
+    private var fingerprintOnlyBinding: Binding<Bool> {
+        Binding(get: { fingerprintOnly }, set: { on in
+            guard !on else { fingerprintOnly = true; return }
+            Biometry.confirm(reason: "turn off \(Biometry.name)-only unlocking") { ok in if ok { fingerprintOnly = false } }
+        })
+    }
 
     var body: some View {
         Form {
@@ -450,7 +459,11 @@ struct SecurityTab: View {
                 Toggle("Lock when the Mac sleeps", isOn: $lockOnSleep)
                 Toggle("Lock when the screen saver starts", isOn: $lockOnSaver)
                 Toggle("Clear the system clipboard when Klipvault quits", isOn: $clearOnQuit)
-                Text("Lock a single clip with \u{2318}L in the popup, or from its right-click menu. It stays masked in every list until \(Biometry.name) — or your login password — says it is you, and it drops back to masked the moment the popup closes. Paste one — or a flagged secret — and it leaves the clipboard 30 seconds later, and stays off your other devices. The first lock asks you to set a passphrase, because a lock over a key that lives on this Mac is only a picture of a lock.")
+                Text("Lock a single clip with \u{2318}L in the popup, or from its right-click menu. It stays masked in every list until \(Biometry.name) — or your login password, unless you turn that off below — says it is you, and it drops back to masked the moment the popup closes. Paste one — or a flagged secret — and it leaves the clipboard 30 seconds later, and stays off your other devices. The first lock asks you to set a passphrase, because a lock over a key that lives on this Mac is only a picture of a lock.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Require \(Biometry.name) — no login-password fallback", isOn: fingerprintOnlyBinding)
+                    .disabled(!fingerprintOnly && !Biometry.isAvailable)
+                Text("For a Mac whose password other people know. With the lid shut, a locked clip stays locked. Turning this off asks for \(Biometry.name) too.")
                     .font(.caption).foregroundStyle(.secondary)
                 if !state.vault.usesPassphrase {
                     Text("Locking only has teeth once a passphrase is set.")

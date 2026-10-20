@@ -67,7 +67,7 @@ Pin your stand-up link, your SSH one-liner, your address. Each gets a one-key sh
 Add a passphrase and the key stops existing on your Mac. Auto-lock on idle, on sleep, on screen lock. Bind a **panic wipe** that erases everything, instantly. And the popup never shows up in a screen share or a recording.
 
 #### 👆 Lock a single clip
-`⌘L` on any item. It shows as `••••••••` in every list, can't be found by search, and won't leave in a plain export — until **Touch ID** says it's you. Paste it and it's off your clipboard 30 seconds later, never handed to your iPhone.
+`⌘L` on any item. It shows as `••••••••` in every list, can't be found by search, and won't leave in a plain export — until **Touch ID** says it's you. Paste it and it's off your clipboard 30 seconds later, never handed to your iPhone. Others know your Mac password? Require the fingerprint alone.
 
 #### 🖼 Text, images and files
 Rich text preserved or stripped on demand. Screenshots stored as separate encrypted blobs, so a 4K image never slows the list down — and **searchable by the words in them**, read on your Mac, never uploaded. Files re-paste as real files.
