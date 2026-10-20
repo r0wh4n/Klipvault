@@ -1,6 +1,7 @@
 import AppKit
 import CryptoKit
 import UniformTypeIdentifiers
+import Vision
 
 /// Pasteboard types that mean "do not record this" — password managers and
 /// transient-copy tools set them. Honouring these is table stakes.
@@ -241,5 +242,18 @@ final class Watcher {
         out.unlockFocus()
         guard let tiff = out.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return nil }
         return rep.representation(using: .png, properties: [:])
+    }
+}
+
+/// Reads the text in an image so a screenshot can be found by what it says. Vision runs
+/// on this Mac — nothing is uploaded — and the result is sealed into the record like the rest.
+enum OCR {
+    /// Slow on a big image (up to a second), so never call it on the main thread.
+    static func text(in data: Data) -> String {
+        let req = VNRecognizeTextRequest()
+        req.recognitionLevel = .accurate
+        req.automaticallyDetectsLanguage = true
+        try? VNImageRequestHandler(data: data).perform([req])
+        return (req.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
     }
 }

@@ -90,6 +90,8 @@ final class AppState: ObservableObject {
         items = vault.items
         locked = false
         scheduleIdleLock()
+        // Catch up on images captured before text recognition existed, or before a lock cut it short.
+        recognizeText(items.filter { $0.kind == .image && $0.ocr == nil }.map(\.id))
     }
 
     func lock() {
@@ -118,6 +120,28 @@ final class AppState: ObservableObject {
         items = vault.items
         if D.bool(D.showRecentInMenuBar) { MenuBar.shared.refreshIcon() }
         if D.bool(D.playSound) { NSSound(named: "Tink")?.play() }
+        if rec.kind == .image { recognizeText([rec.id]) }
+    }
+
+    /// Reads the text in these images one at a time, off the main thread. The vault is only
+    /// touched on main, and a lock stops the run — the next unlock picks up what is left.
+    /// Screenshot mode stops it too: each write swaps the real history in over the demo list.
+    // ponytail: one log rewrite per image; batch the writes if backfilling hundreds ever drags.
+    private func recognizeText(_ ids: [UUID]) {
+        guard let id = ids.first, !locked, !Screenshot.active else { return }
+        let rest = Array(ids.dropFirst())
+        guard let b = vault.items.first(where: { $0.id == id })?.blob, let data = vault.readBlob(b) else {
+            return recognizeText(rest)   // deduped away or deleted since
+        }
+        DispatchQueue.global(qos: .utility).async {
+            let text = OCR.text(in: data)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.locked, !Screenshot.active else { return }
+                self.vault.update(id) { $0.ocr = text }
+                self.items = self.vault.items
+                self.recognizeText(rest)
+            }
+        }
     }
 
     // MARK: search
@@ -133,18 +157,28 @@ final class AppState: ObservableObject {
         if mode == "regex" {
             guard let re = try? NSRegularExpression(pattern: q, options: [.caseInsensitive]) else { return [] }
             return all.filter { r in
-                let s = r.haystack
+                let s = r.haystack + "\n" + r.imageText
                 return re.firstMatch(in: s, options: [], range: NSRange(s.startIndex..., in: s)) != nil
             }
         }
-        if mode == "exact" { return all.filter { $0.haystack.contains(q) } }
-        if mode == "contains" { return all.filter { $0.haystack.localizedCaseInsensitiveContains(q) } }
+        if mode == "exact" { return all.filter { $0.haystack.contains(q) || $0.imageText.contains(q) } }
+        if mode == "contains" {
+            return all.filter { $0.haystack.localizedCaseInsensitiveContains(q) || $0.imageText.localizedCaseInsensitiveContains(q) }
+        }
         // fuzzy: subsequence match, ranked by tightness then recency
         return all.compactMap { r -> (ClipRecord, Int)? in
-            Self.fuzzyScore(needle: q, haystack: r.haystack).map { (r, $0 + (r.pinned ? 500 : 0)) }
+            Self.fuzzyScore(needle: q, record: r).map { (r, $0 + (r.pinned ? 500 : 0)) }
         }
         .sorted { $0.1 == $1.1 ? $0.0.created > $1.0.created : $0.1 > $1.1 }
         .map { $0.0 }
+    }
+
+    /// Text read out of an image matches as a substring, never a subsequence: a screenful of
+    /// words holds nearly every short subsequence, so every screenshot would match everything.
+    /// A hit scores like an unbroken run.
+    static func fuzzyScore(needle: String, record r: ClipRecord) -> Int? {
+        fuzzyScore(needle: needle, haystack: r.haystack)
+            ?? (r.imageText.localizedCaseInsensitiveContains(needle) ? 8 * needle.count : nil)
     }
 
     /// Subsequence match. Higher = better: rewards consecutive hits and early matches.
@@ -304,6 +338,9 @@ extension ClipRecord {
     /// Empty for a locked clip: a search that matched its contents would let anyone read it
     /// one keystroke at a time without ever touching the fingerprint reader.
     var haystack: String { isLocked ? "" : (text ?? "") + " " + title + " " + (appName ?? "") }
+
+    /// The words in an image clip, searchable — and empty when locked, for the same reason.
+    var imageText: String { isLocked ? "" : ocr ?? "" }
 
     /// What is safe to draw. Anywhere a title is shown, this is the title.
     func displayTitle(revealed: Bool = false) -> String {

@@ -602,7 +602,23 @@ func selfTest() -> Int32 {
     w.wipe(); settle()
     check(!w.isHolding(sec), "locking a clip that is still on the clipboard takes it off")
 
-    // 13. Hotkey combos survive a round-trip through their stored form.
+    // 13. Text in an image is read on this Mac and becomes searchable — as a substring, so a
+    //     screenful of words does not fuzzy-match everything — and never while the clip is locked.
+    let shot = NSImage(size: NSSize(width: 640, height: 120))
+    shot.lockFocus()
+    NSColor.white.setFill(); NSRect(x: 0, y: 0, width: 640, height: 120).fill()
+    ("INVOICE 4242" as NSString).draw(at: NSPoint(x: 24, y: 30),
+        withAttributes: [.font: NSFont.systemFont(ofSize: 56, weight: .bold), .foregroundColor: NSColor.black])
+    shot.unlockFocus()
+    let read = Watcher.png(shot, maxDim: 640).map(OCR.text(in:)) ?? ""
+    check(read.localizedCaseInsensitiveContains("invoice 4242"), "reads the text in a screenshot (got \"\(read)\")")
+    var img = ClipRecord(); img.kind = .image; img.title = "Image 640×120"; img.ocr = "the quick brown fox"
+    check(AppState.fuzzyScore(needle: "brown fox", record: img) != nil, "a screenshot is found by the words in it")
+    check(AppState.fuzzyScore(needle: "tqbf", record: img) == nil, "but not by a scattered subsequence of them")
+    img.locked = true
+    check(AppState.fuzzyScore(needle: "brown fox", record: img) == nil, "and not at all while it is locked")
+
+    // 14. Hotkey combos survive a round-trip through their stored form.
     let combo = HotkeyCenter.Combo(keyCode: 9, flags: [.command, .shift])
     check(HotkeyCenter.Combo.parse(combo.stored) == combo, "hotkey round-trips")
     check(combo.display == "\u{21E7}\u{2318}V", "hotkey renders as \u{21E7}\u{2318}V (got \(combo.display))")

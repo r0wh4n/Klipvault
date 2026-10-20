@@ -70,7 +70,7 @@ Add a passphrase and the key stops existing on your Mac. Auto-lock on idle, on s
 `⌘L` on any item. It shows as `••••••••` in every list, can't be found by search, and won't leave in a plain export — until **Touch ID** says it's you. Paste it and it's off your clipboard 30 seconds later, never handed to your iPhone.
 
 #### 🖼 Text, images and files
-Rich text preserved or stripped on demand. Screenshots stored as separate encrypted blobs, so a 4K image never slows the list down. Files re-paste as real files.
+Rich text preserved or stripped on demand. Screenshots stored as separate encrypted blobs, so a 4K image never slows the list down — and **searchable by the words in them**, read on your Mac, never uploaded. Files re-paste as real files.
 
 #### ⌨️ Built for the keyboard
 Six rebindable global hotkeys. Fuzzy, contains, exact or regex search. `⏎` paste · `⌥⏎` plain · `⌘P` pin · `⌘L` lock · `⌘⌫` delete.

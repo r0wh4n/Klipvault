@@ -82,6 +82,9 @@ struct ClipRecord: Codable, Identifiable, Equatable {
     /// record written before this field existed fail to decode — silently eating the whole
     /// history. An optional decodes to nil instead. nil means unlocked.
     var locked: Bool? = nil
+    /// Text Vision read out of an image clip. "" once read and found empty, so it is never
+    /// read twice; nil until then. Optional for the same reason `locked` is.
+    var ocr: String? = nil
     var hash: String = ""           // dedupe key
 
     var isLocked: Bool { locked == true }

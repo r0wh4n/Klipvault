@@ -403,6 +403,11 @@ struct PreviewPane: View {
                     Image(nsImage: img).resizable().aspectRatio(contentMode: .fit)
                         .frame(maxWidth: .infinity, maxHeight: 220)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                    // Shows why a search matched this screenshot.
+                    if let words = it.ocr, !words.isEmpty {
+                        Text(words).font(.caption).foregroundStyle(.secondary)
+                            .lineLimit(4).textSelection(.enabled)
+                    }
                 } else if it.sensitive && D.bool(D.maskSensitive) {
                     VStack(spacing: 6) {
                         Image(systemName: "lock.shield.fill").font(.largeTitle).foregroundStyle(.orange)
