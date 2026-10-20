@@ -59,7 +59,7 @@ Keep history for 15 days, 90, a year, or forever. Cap it by count too. **Every i
 Pin your stand-up link, your SSH one-liner, your address. Each gets a one-key shortcut — `⌘1`, `⌘2` — from anywhere.
 
 #### 🕵️ It spots your secrets
-13 patterns: AWS, GitHub, Slack, Stripe, Google, OpenAI/Anthropic keys, JWTs, PEM blocks, bearer tokens, DB connection strings, cards. Flagged items are masked in the list and can self-destruct in minutes.
+13 patterns: AWS, GitHub, Slack, Stripe, Google, OpenAI/Anthropic keys, JWTs, PEM blocks, bearer tokens, DB connection strings, cards. Flagged items are masked in the list, can lock themselves the moment you copy them, and can self-destruct in minutes.
 
 </td><td width="50%" valign="top">
 

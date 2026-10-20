@@ -53,6 +53,7 @@ enum D {
     static let sensitiveMinutes = "sensitiveMinutes"
     static let maskSensitive = "maskSensitive"
     static let clearSystemClipboardOnQuit = "clearSystemClipboardOnQuit"
+    static let lockSecrets = "lockSecrets"               // auto-lock flagged items on capture
     // Advanced
     static let pollInterval = "pollInterval"
     static let dedupe = "dedupe"
@@ -82,7 +83,7 @@ enum D {
             minLength: 1, maxLength: 0, ignoreOnlyWhitespace: true,
             autoLockMinutes: 0, lockOnSleep: false, lockOnScreensaver: false,
             detectSecrets: true, sensitiveMinutes: 0, maskSensitive: true,
-            clearSystemClipboardOnQuit: false,
+            clearSystemClipboardOnQuit: false, lockSecrets: false,
             pollInterval: 0.35, dedupe: true, stripFormatting: false, previewLines: 12,
             firstRunDone: false,
             hkPopup: "9,1179648",       // ⌘⇧V
@@ -116,7 +117,7 @@ enum D {
         showRecentInMenuBar, compactRows,
         ignoredApps, ignoreRegexes, ignoreTransient, ignoreConfidential, minLength, maxLength,
         ignoreOnlyWhitespace, autoLockMinutes, lockOnSleep, lockOnScreensaver, detectSecrets,
-        sensitiveMinutes, maskSensitive, clearSystemClipboardOnQuit,
+        sensitiveMinutes, maskSensitive, clearSystemClipboardOnQuit, lockSecrets,
         pollInterval, dedupe, stripFormatting, previewLines
     ]
 }

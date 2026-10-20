@@ -373,6 +373,7 @@ struct SecurityTab: View {
     @AppStorage(D.maskSensitive) private var maskSensitive = true
     @AppStorage(D.sensitiveMinutes) private var sensitiveMinutes = 0
     @AppStorage(D.clearSystemClipboardOnQuit) private var clearOnQuit = false
+    @AppStorage(D.lockSecrets) private var lockSecrets = false
     @State private var pass1 = ""
     @State private var pass2 = ""
     @State private var note: String?
@@ -459,6 +460,10 @@ struct SecurityTab: View {
             Section("Secret detection") {
                 Toggle("Flag API keys, tokens, private keys and card numbers", isOn: $detectSecrets)
                 Toggle("Hide flagged items behind a lock in the list", isOn: $maskSensitive)
+                Toggle(state.vault.usesPassphrase ? "Lock flagged items the moment they are copied"
+                                                  : "Lock flagged items the moment they are copied (needs a passphrase)",
+                       isOn: $lockSecrets)
+                    .disabled(!state.vault.usesPassphrase)
                 Stepper(sensitiveMinutes == 0 ? "Flagged items follow the normal retention"
                                               : "Delete flagged items after **\(sensitiveMinutes)** min",
                         value: $sensitiveMinutes, in: 0...1440, step: 5)

@@ -142,6 +142,8 @@ final class Watcher {
         if D.bool(D.detectSecrets), SecretScanner.match(s) != nil {
             rec.sensitive = true
             if D.bool(D.maskSensitive) { rec.title = "🔒 Sensitive — \(s.count) characters hidden" }
+            // Only with a passphrase, for the reason toggleLock gives: over key.local it is a picture of a lock.
+            if D.bool(D.lockSecrets), vault.usesPassphrase { rec.locked = true }
         }
         return rec
     }
